@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
 	Paddle left_paddle(-3.5f, -3.4f, 0.5f, -0.5f);
 	Paddle right_paddle(3.4f, 3.5f, 0.5f, -0.5f);
-	Ball ball(0.0f, 0.0f, 0.1f, (float)rand(), (float)rand());
+	Ball ball(0.0f, 0.0f, 0.0001f, (float)rand(), (float)rand());
 
 	SDL_Event event;
 	bool done = false;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE) {
 				done = true;
-			}		
+			}
 			if (event.type == SDL_KEYDOWN) {
 				//Start Game
 				if (event.key.keysym.scancode == SDL_SCANCODE_SPACE && !game_running) {
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 
 		//Draw ball
 		program.SetModelviewMatrix(ball_Matrix);
-		float ball_vertices[] = {-0.1f, -0.1f, 0.1f, -0.1f, 0.1f, 0.1f, -0.1f, -0.1f, 0.1f, 0.1f, -0.1f, 0.1f };
+		float ball_vertices[] = { -0.1f, -0.1f, 0.1f, -0.1f, 0.1f, 0.1f, -0.1f, -0.1f, 0.1f, 0.1f, -0.1f, 0.1f };
 		glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, ball_vertices);
 		glEnableVertexAttribArray(program.positionAttribute);
 
@@ -181,14 +181,14 @@ int main(int argc, char *argv[])
 		//Game logic
 		if (game_running) {
 			//Ball hits top/bottom wall -> reverse y magnitude
-			if ((ball.pos_y >= 2.1f) || (ball.pos_y <= -2.1f)) {
+			if (ball.pos_y + 0.1f >= 1.0f || ball.pos_y - 0.1f <= -1.0f) {
 				ball.dir_y *= -1;
 				ball.move(elapsed);
 				ball_Matrix.Translate(ball.speed * ball.dir_x * elapsed, ball.speed * ball.dir_y * elapsed, 0.0f);
 			}
 			//Ball hits either paddle -> reverse x magnitude
-			else if (ball.pos_x <= left_paddle.right && ball.pos_y <= left_paddle.top && ball.pos_y >= left_paddle.bottom ||
-				ball.pos_x >= right_paddle.left && ball.pos_y <= right_paddle.top && ball.pos_y >= right_paddle.bottom) {
+			else if (ball.pos_x - 0.2f <= left_paddle.right && ball.pos_y <= left_paddle.top && ball.pos_y >= left_paddle.bottom ||
+				ball.pos_x + 0.2f >= right_paddle.left && ball.pos_y <= right_paddle.top && ball.pos_y >= right_paddle.bottom) {
 				ball.dir_x *= -1;
 				ball.move(elapsed);
 				ball_Matrix.Translate(ball.speed * ball.dir_x * elapsed, ball.speed * ball.dir_y * elapsed, 0.0f);
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 			//Ball moves regularly
 			else {
 				ball.move(elapsed);
-				ball_Matrix.Translate((ball.speed * ball.dir_x * elapsed), (elapsed, ball.speed * ball.dir_y * elapsed), 0.0f);
+				ball_Matrix.Translate((ball.speed * ball.dir_x * elapsed), (ball.speed * ball.dir_y * elapsed), 0.0f);
 			}
 		}
 
@@ -220,3 +220,4 @@ int main(int argc, char *argv[])
 	SDL_Quit();
 	return 0;
 }
+
