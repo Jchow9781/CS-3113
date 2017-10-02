@@ -94,11 +94,11 @@ int main(int argc, char *argv[])
 	Matrix ball_Matrix;
 	Matrix modelviewMatrix;
 
-	float last_frame_ticks = 0.0f;
-
 	Paddle left_paddle(-3.5f, -3.4f, 0.5f, -0.5f);
 	Paddle right_paddle(3.4f, 3.5f, 0.5f, -0.5f);
 	Ball ball(0.0f, 0.0f, 0.0001f, (float)rand(), (float)rand());
+
+	float last_frame_ticks = 0.0f;
 
 	SDL_Event event;
 	bool done = false;
@@ -196,21 +196,21 @@ int main(int argc, char *argv[])
 			//Left side wins
 			else if (ball.pos_x > right_paddle.left) {
 				game_running = false;
-				ball_Matrix.Translate(-ball.pos_x, -ball.pos_y, 0.0f);
+				ball_Matrix.Translate((float)-ball.pos_x, (float)-ball.pos_y, 0.0f);
 				ball.reset();
 				std::cout << "LEFT WINS!\n";
 			}
 			//Right side wins
 			else if (ball.pos_x < left_paddle.right) {
 				game_running = false;
-				ball_Matrix.Translate(-ball.pos_x, -ball.pos_y, 0.0f);
+				ball_Matrix.Translate((float)-ball.pos_x, (float)-ball.pos_y, 0.0f);
 				ball.reset();
-				std::cout << "Right WINS!\n";
+				std::cout << "RIGHT WINS!\n";
 			}
 			//Ball moves regularly
 			else {
 				ball.move(elapsed);
-				ball_Matrix.Translate((ball.speed * ball.dir_x * elapsed), (ball.speed * ball.dir_y * elapsed), 0.0f);
+				ball_Matrix.Translate(ball.speed * ball.dir_x * elapsed, ball.speed * ball.dir_y * elapsed, 0.0f);
 			}
 		}
 
