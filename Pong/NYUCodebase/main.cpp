@@ -45,6 +45,7 @@ struct Paddle {
 };
 
 struct Ball {
+	Ball(float pos_x, float pos_y, float speed, float dir_x, float dir_y) : pos_x(pos_x), pos_y(pos_y), speed(speed), dir_x(dir_x), dir_y(dir_y) {}
 	float pos_x = 0.0f;
 	float pos_y = 0.0f;
 	float speed = 0.1f;
@@ -59,9 +60,9 @@ struct Ball {
 		float dir_y = (float)rand();
 	}
 
-	void move()	{
-		pos_x += (speed * dir_x);
-		pos_y += (speed * dir_y);
+	void move(float elapsed) {
+		pos_x += (speed * dir_x * elapsed);
+		pos_y += (speed * dir_y * elapsed);
 	}
 };
 
@@ -83,8 +84,6 @@ int main(int argc, char *argv[])
 	//Can't make an object have a solid white color so using white texture instead
 	GLuint whiteTexture = LoadTexture(RESOURCE_FOLDER"white.png");
 
-	float last_frame_ticks = 0.0f;
-
 	glEnable(GL_BLEND);
 
 	Matrix projectionMatrix;
@@ -95,24 +94,32 @@ int main(int argc, char *argv[])
 	Matrix ball_Matrix;
 	Matrix modelviewMatrix;
 
+	float last_frame_ticks = 0.0f;
+
 	Paddle left_paddle(-3.5f, -3.4f, 0.5f, -0.5f);
 	Paddle right_paddle(3.4f, 3.5f, 0.5f, -0.5f);
+	Ball ball(0.0f, 0.0f, 0.1f, (float)rand(), (float)rand());
 
 	SDL_Event event;
 	bool done = false;
+	bool game_running = false;
 	while (!done) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE) {
 				done = true;
-			}
-			else if (event.type == SDL_KEYDOWN) {
-				//Left paddle
+			}		
+			if (event.type == SDL_KEYDOWN) {
+				//Start Game
+				if (event.key.keysym.scancode == SDL_SCANCODE_SPACE && !game_running) {
+					game_running = true;
+				}
+				//Left paddle 
 				if (event.key.keysym.scancode == SDL_SCANCODE_W && left_paddle.top < 2.0f) {
 					left_paddle.top += 0.3f;
 					left_paddle.bottom += 0.3f;
 					left_paddle_Matrix.Translate(0.0f, 0.3f, 0.0f);
 				}
-				else if (event.key.keysym.scancode == SDL_SCANCODE_S && left_paddle.bottom > -2.0f) {
+				if (event.key.keysym.scancode == SDL_SCANCODE_S && left_paddle.bottom > -2.0f) {
 					left_paddle.top -= 0.3f;
 					left_paddle.bottom -= 0.3f;
 					left_paddle_Matrix.Translate(0.0f, -0.3f, 0.0f);
@@ -123,17 +130,13 @@ int main(int argc, char *argv[])
 					right_paddle.bottom += 0.3f;
 					right_paddle_Matrix.Translate(0.0f, 0.3f, 0.0f);
 				}
-				else if (event.key.keysym.scancode == SDL_SCANCODE_DOWN && right_paddle.bottom > -2.0f) {
+				if (event.key.keysym.scancode == SDL_SCANCODE_DOWN && right_paddle.bottom > -2.0f) {
 					right_paddle.top -= 0.3f;
 					right_paddle.bottom -= 0.3f;
 					right_paddle_Matrix.Translate(0.0f, -0.3f, 0.0f);
 				}
 			}
 		}
-
-		float ticks = (float)SDL_GetTicks() / 1000.0f;
-		float elapsed = ticks - last_frame_ticks;
-		last_frame_ticks = ticks;
 
 		glClear(GL_COLOR_BUFFER_BIT);
 
@@ -160,6 +163,56 @@ int main(int argc, char *argv[])
 
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glDisableVertexAttribArray(program.positionAttribute);
+
+		//Draw ball
+		program.SetModelviewMatrix(ball_Matrix);
+		float ball_vertices[] = {-0.1f, -0.1f, 0.1f, -0.1f, 0.1f, 0.1f, -0.1f, -0.1f, 0.1f, 0.1f, -0.1f, 0.1f };
+		glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, ball_vertices);
+		glEnableVertexAttribArray(program.positionAttribute);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glDisableVertexAttribArray(program.positionAttribute);
+
+
+		float ticks = (float)SDL_GetTicks() / 1000.0f;
+		float elapsed = ticks - last_frame_ticks;
+		last_frame_ticks = ticks;
+
+		//Game logic
+		if (game_running) {
+			//Ball hits top/bottom wall -> reverse y magnitude
+			if ((ball.pos_y >= 2.1f) || (ball.pos_y <= -2.1f)) {
+				ball.dir_y *= -1;
+				ball.move(elapsed);
+				ball_Matrix.Translate(ball.speed * ball.dir_x * elapsed, ball.speed * ball.dir_y * elapsed, 0.0f);
+			}
+			//Ball hits either paddle -> reverse x magnitude
+			else if (ball.pos_x <= left_paddle.right && ball.pos_y <= left_paddle.top && ball.pos_y >= left_paddle.bottom ||
+				ball.pos_x >= right_paddle.left && ball.pos_y <= right_paddle.top && ball.pos_y >= right_paddle.bottom) {
+				ball.dir_x *= -1;
+				ball.move(elapsed);
+				ball_Matrix.Translate(ball.speed * ball.dir_x * elapsed, ball.speed * ball.dir_y * elapsed, 0.0f);
+			}
+			//Left side wins
+			else if (ball.pos_x > right_paddle.left) {
+				game_running = false;
+				ball_Matrix.Translate(-ball.pos_x, -ball.pos_y, 0.0f);
+				ball.reset();
+				std::cout << "LEFT WINS!\n";
+			}
+			//Right side wins
+			else if (ball.pos_x < left_paddle.right) {
+				game_running = false;
+				ball_Matrix.Translate(-ball.pos_x, -ball.pos_y, 0.0f);
+				ball.reset();
+				std::cout << "Right WINS!\n";
+			}
+			//Ball moves regularly
+			else {
+				ball.move(elapsed);
+				ball_Matrix.Translate((ball.speed * ball.dir_x * elapsed), (elapsed, ball.speed * ball.dir_y * elapsed), 0.0f);
+			}
+		}
 
 		SDL_GL_SwapWindow(displayWindow);
 	}
