@@ -9,6 +9,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+
 #ifdef _WINDOWS
 #define RESOURCE_FOLDER ""
 #else
@@ -34,14 +35,34 @@ GLuint LoadTexture(const char *filePath) {
 	return retTexture;
 }
 
-class Paddle {
-public:
+struct Paddle {
 	Paddle(float left, float right, float top, float bottom) : left(left), right(right), top(top), bottom(bottom) {}
 
 	float left;
 	float right;
 	float top;
 	float bottom;
+};
+
+struct Ball {
+	float pos_x = 0.0f;
+	float pos_y = 0.0f;
+	float speed = 0.1f;
+	float dir_x = (float)rand();
+	float dir_y = (float)rand();
+
+	void reset() {
+		float pos_x = 0.0f;
+		float pos_y = 0.0f;
+		float speed = 0.1f;
+		float dir_x = (float)rand();
+		float dir_y = (float)rand();
+	}
+
+	void move()	{
+		pos_x += (speed * dir_x);
+		pos_y += (speed * dir_y);
+	}
 };
 
 int main(int argc, char *argv[])
@@ -59,24 +80,23 @@ int main(int argc, char *argv[])
 
 	ShaderProgram program(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
 
-	/*GLuint fireTexture = LoadTexture(RESOURCE_FOLDER"fire.png");
-	GLuint tentTexture = LoadTexture(RESOURCE_FOLDER"tent.png");
-	GLuint personTexture = LoadTexture(RESOURCE_FOLDER"person.png");*/
+	//Can't make an object have a solid white color so using white texture instead
 	GLuint whiteTexture = LoadTexture(RESOURCE_FOLDER"white.png");
 
 	float last_frame_ticks = 0.0f;
 
 	glEnable(GL_BLEND);
 
-	Paddle left_paddle(-3.5f, -3.4f, 0.5f, -0.5f);
-	Paddle right_paddle(3.4f, 3.5f, 0.5f, -0.5f);
-
 	Matrix projectionMatrix;
+	projectionMatrix.SetOrthoProjection(-3.55f, 3.55f, -2.0f, 2.0f, -1.0f, 1.0f);
+
 	Matrix left_paddle_Matrix;
 	Matrix right_paddle_Matrix;
 	Matrix ball_Matrix;
-	projectionMatrix.SetOrthoProjection(-3.55f, 3.55f, -2.0f, 2.0f, -1.0f, 1.0f);
 	Matrix modelviewMatrix;
+
+	Paddle left_paddle(-3.5f, -3.4f, 0.5f, -0.5f);
+	Paddle right_paddle(3.4f, 3.5f, 0.5f, -0.5f);
 
 	SDL_Event event;
 	bool done = false;
@@ -87,10 +107,26 @@ int main(int argc, char *argv[])
 			}
 			else if (event.type == SDL_KEYDOWN) {
 				//Left paddle
-				if (event.key.keysym.scancode == SDL_SCANCODE_UP) {
+				if (event.key.keysym.scancode == SDL_SCANCODE_W && left_paddle.top < 2.0f) {
 					left_paddle.top += 0.3f;
 					left_paddle.bottom += 0.3f;
 					left_paddle_Matrix.Translate(0.0f, 0.3f, 0.0f);
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_S && left_paddle.bottom > -2.0f) {
+					left_paddle.top -= 0.3f;
+					left_paddle.bottom -= 0.3f;
+					left_paddle_Matrix.Translate(0.0f, -0.3f, 0.0f);
+				}
+				//Right paddle
+				if (event.key.keysym.scancode == SDL_SCANCODE_UP && right_paddle.top < 2.0f) {
+					right_paddle.top += 0.3f;
+					right_paddle.bottom += 0.3f;
+					right_paddle_Matrix.Translate(0.0f, 0.3f, 0.0f);
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_DOWN && right_paddle.bottom > -2.0f) {
+					right_paddle.top -= 0.3f;
+					right_paddle.bottom -= 0.3f;
+					right_paddle_Matrix.Translate(0.0f, -0.3f, 0.0f);
 				}
 			}
 		}
@@ -103,15 +139,11 @@ int main(int argc, char *argv[])
 
 		glUseProgram(program.programID);
 
-		program.SetModelviewMatrix(modelviewMatrix);
+		program.SetModelviewMatrix(left_paddle_Matrix);
 		program.SetProjectionMatrix(projectionMatrix);
 
 		//Drawing left paddle
-		modelviewMatrix.Identity();
-		modelviewMatrix.Translate(-3.3f, 0.0, 0.0);
-		program.SetModelviewMatrix(modelviewMatrix);
-
-		float left_paddle_vertices[] = { -0.1f, -0.5f, 0.1f, -0.5f, 0.1f, 0.5f, -0.1f, -0.5f, 0.1f, 0.5f, -0.1f, 0.5f };
+		float left_paddle_vertices[] = { -3.4f, -0.5f, -3.2f, -0.5f, -3.2f, 0.5f, -3.2f, 0.5f, -3.4f, 0.5f, -3.4f, -0.5f };
 		glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, left_paddle_vertices);
 		glEnableVertexAttribArray(program.positionAttribute);
 
@@ -120,11 +152,9 @@ int main(int argc, char *argv[])
 
 
 		//Draw right paddle
-		modelviewMatrix.Identity();
-		modelviewMatrix.Translate(3.3f, 0.0f, 0.0f);
-		program.SetModelviewMatrix(modelviewMatrix);
+		program.SetModelviewMatrix(right_paddle_Matrix);
 
-		float right_paddle_vertices[] = { -0.1f, -0.5f, 0.1f, -0.5f, 0.1f, 0.5f, -0.1f, -0.5f, 0.1f, 0.5f, -0.1f, 0.5f };
+		float right_paddle_vertices[] = { 3.4f, -0.5f, 3.2f, -0.5f, 3.2f, 0.5f, 3.2f, 0.5f, 3.4f, 0.5f, 3.4f, -0.5f };
 		glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, right_paddle_vertices);
 		glEnableVertexAttribArray(program.positionAttribute);
 
