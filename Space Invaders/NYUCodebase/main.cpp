@@ -25,14 +25,14 @@ Matrix modelViewMatrix;
 struct Entity;
 float texture_coords[] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
 
-//GAME VALUES
+//GAME THINGS
 enum TYPE { PLAYER, INVADER, LASER };
 enum STATE { MAIN_MENU, IN_GAME };
 ShaderProgram* program;
 float lastFrameTicks = 0.0f;
 float elapsed;
 float timeSinceLastFire = 0.0f;
-float timeSinceLastEnemyFire = 0.0f;
+float timeSinceLastInvaderFire = 0.0f;
 
 GLuint LoadTexture(const char *filePath) {
 	int w, h, comp;
@@ -51,7 +51,7 @@ GLuint LoadTexture(const char *filePath) {
 	return retTexture;
 }
 
-//Spaceship or invader
+//Spaceship, invader, or bullet
 struct Entity {
 	Entity() {}
 
@@ -104,14 +104,14 @@ struct Entity {
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices.data());
-		glEnableVertexAttribArray(program->positionAttribute);
-		glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords.data());
-		glEnableVertexAttribArray(program->texCoordAttribute);
-		glBindTexture(GL_TEXTURE_2D, mainTexture);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+glEnableVertexAttribArray(program->positionAttribute);
+glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords.data());
+glEnableVertexAttribArray(program->texCoordAttribute);
+glBindTexture(GL_TEXTURE_2D, mainTexture);
+glDrawArrays(GL_TRIANGLES, 0, 6);
 
-		glDisableVertexAttribArray(program->positionAttribute);
-		glDisableVertexAttribArray(program->texCoordAttribute);
+glDisableVertexAttribArray(program->positionAttribute);
+glDisableVertexAttribArray(program->texCoordAttribute);
 	}
 
 	float position[2]; //dir_x, dir_y]
@@ -131,17 +131,17 @@ Entity player;
 std::vector<Entity> invaders;
 std::vector<Entity> playerLasers;
 std::vector<Entity> invaderLasers;
-
+std::vector<int> playerLasersToRemove;
 
 int main(int argc, char *argv[]) {
 	SDL_Init(SDL_INIT_VIDEO);
 	displayWindow = SDL_CreateWindow("My Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_OPENGL);
 	SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
 	SDL_GL_MakeCurrent(displayWindow, context);
-	#ifdef _WINDOWS
-		glewInit();
-	#endif
-	
+#ifdef _WINDOWS
+	glewInit();
+#endif
+
 	//Setup
 	glViewport(0, 0, 1280, 720);
 	program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
@@ -151,13 +151,13 @@ int main(int argc, char *argv[]) {
 	program->SetProjectionMatrix(projectionMatrix);
 
 	mainTexture = LoadTexture(RESOURCE_FOLDER"sheet.png");
-	const Uint8 *keys = SDL_GetKeyboardState(NULL);
+	const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
+	//Creating objects for each entity
 	player = Entity(0.0f, -1.8f, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 4.0f, 0);
 	for (int i = 0; i < 50; i++) {
 		invaders.push_back(Entity(-2.4 + (i % 10) * 0.5, 1.8 - (i / 10 * 0.5), 120.0f / 1024.0f, 604.0f / 1024.0f, 104.0f / 1024.0f, 84.0f / 1024.0f, 0.0f, 0.0f));
 	}
-	
 
 	SDL_Event event;
 	bool done = false;
@@ -166,8 +166,6 @@ int main(int argc, char *argv[]) {
 			if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE) {
 				done = true;
 			}
-			
-			
 		}
 		if (keys[SDL_SCANCODE_SPACE] && timeSinceLastFire > 0.15f) {
 			playerLasers.push_back(Entity(player.position[0], player.position[1], 843.0f / 1024.0f, 426.0f / 1024.0f, 13.0f / 1024.0f, 54.0f / 1024.0f, 0, 4.0f));
@@ -183,31 +181,76 @@ int main(int argc, char *argv[]) {
 			player.boundary[2] += player.speed[0] * elapsed;
 			player.boundary[3] += player.speed[0] * elapsed;
 		}
-		
 
+		//Dealing with time
 		float ticks = (float)SDL_GetTicks() / 1000.0f;
 		elapsed = ticks - lastFrameTicks;
 		lastFrameTicks = ticks;
 		timeSinceLastFire += elapsed;
-		timeSinceLastEnemyFire += elapsed;
+		timeSinceLastInvaderFire += elapsed;
 
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		//Check to make sure that dead invaders are not firing
+		if (timeSinceLastInvaderFire > 0.4f) {
+			invaderLasers.push_back(Entity(invaders[rand() % invaders.size()].position[0], invaders[rand() % invaders.size()].position[1], 602.0f / 1024.0f, 600.0f / 1024.0f, 48.0f / 1024.0f, 46.0f / 1024.0f, 0, -1.0f));
+			timeSinceLastInvaderFire = 0;
+		}
+
+		//Collision detection between lasers and objects
+		//If an player laser hits invader, remove invader from vector and remove player laser from vector
+		for (size_t i = 0; i < playerLasers.size(); i++) {
+			for (size_t j = 0; j < invaders.size(); j++) {
+				if (invaders[j].boundary[0] > playerLasers[i].boundary[1] && 
+					invaders[j].boundary[1] < playerLasers[i].boundary[0] &&
+					invaders[j].boundary[2] < playerLasers[i].boundary[3] && 
+					invaders[j].boundary[3] > playerLasers[i].boundary[2]) {
+					playerLasersToRemove.push_back(i);
+					invaders.erase(invaders.begin() + j);
+				}
+			}
+		}
+		//invader laser and player collision detection
+		for (size_t i = 0; i < invaderLasers.size(); i++) {
+			if (invaderLasers[i].boundary[1] < player.boundary[0] &&
+				invaderLasers[i].boundary[0] > player.boundary[1] &&
+				invaderLasers[i].boundary[2] < player.boundary[3] &&
+				invaderLasers[i].boundary[3] > player.boundary[2]) {
+				//CALL DISPLAY FUNCTION
+			}
+		}
+		
+		//Draw Entities
 		player.draw();
-		for (int i = 0; i < invaders.size(); i++) {
+		for (size_t i = 0; i < invaders.size(); i++) {
 			invaders[i].draw();
 		}
-		for (int i = 0; i < playerLasers.size(); i++) {
+		for (size_t i = 0; i < playerLasers.size(); i++) {
 			playerLasers[i].draw();
 			playerLasers[i].position[1] += playerLasers[i].speed[1] * elapsed;
 			playerLasers[i].boundary[0] += playerLasers[i].speed[1] * elapsed;
 			playerLasers[i].boundary[1] += playerLasers[i].speed[1] * elapsed;
+			//Delete lasors from vector if they fly outside screen
 			if (playerLasers[i].position[1] > 2.0f) {
 				playerLasers.erase(playerLasers.begin() + i);
 			}
+			for (size_t i = 0; i < playerLasersToRemove.size(); i++) {
+				playerLasers.erase(playerLasers.begin() + playerLasersToRemove[i]);
+			}
+			playerLasersToRemove.clear();
+		}	
+		for (size_t i = 0; i < invaderLasers.size(); i++) {
+			invaderLasers[i].draw();
+			invaderLasers[i].position[1] += invaderLasers[i].speed[1] * elapsed;
+			invaderLasers[i].boundary[1] += invaderLasers[i].speed[1] * elapsed;
+			invaderLasers[i].boundary[1] += invaderLasers[i].speed[1] * elapsed;
+			//Delete lasors from vector if they fly outside screen
+			if (invaderLasers[i].position[1] < -2.0f) {
+				invaderLasers.erase(invaderLasers.begin() + i);
+			}
 		}
-		SDL_GL_SwapWindow(displayWindow);
 
+		SDL_GL_SwapWindow(displayWindow);
 		glUseProgram(program->programID);
 	}
 
