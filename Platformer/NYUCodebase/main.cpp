@@ -9,7 +9,9 @@
 #include "Matrix.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-
+#define SPRITE_COUNT_X 16
+#define SPRITE_COUNT_Y 8
+#define TILE_SIZE 0.4f
 using namespace std;
 
 #ifdef _WINDOWS
@@ -23,13 +25,12 @@ SDL_Window* displayWindow;
 //TEXTURE THINGS
 GLuint mainTexture;
 GLuint fontTexture;
-Matrix projectionMatrix;
-Matrix modelViewMatrix;
+
 struct Entity;
 float texture_coords[] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
 
 //GAME THINGS
-enum Type {PLAYER, COIN, BLOCK};
+enum Type {PLAYER, COIN};
 bool game_running = true;
 float lastFrameTicks = 0.0f;
 float elapsed;
@@ -56,10 +57,60 @@ GLuint LoadTexture(const char *filePath) {
 	return retTexture;
 }
 
+struct SpriteSheet {
+	SpriteSheet() {};
+
+	SpriteSheet(unsigned int textureID, float u, float v, float width, float height, float size)
+		: textureID(textureID), u(u), v(v), width(width), height(height), size(size) {};
+
+	void Draw(ShaderProgram* program) {
+		glBindTexture(GL_TEXTURE_2D, textureID);
+		GLfloat texCoords[] = {
+			u, v + height,
+			u + width, v,
+			u, v,
+			u + width, v,
+			u, v + height,
+			u + width, v + height
+		};
+
+		float aspect = width / height;
+		float vertices[] = {
+			-0.5f * size * aspect, -0.5f * size,
+			0.5f * size * aspect, 0.5f * size,
+			-0.5f * size * aspect, 0.5f * size,
+			0.5f * size * aspect, 0.5f * size,
+			-0.5f * size * aspect, -0.5f * size,
+			0.5f * size * aspect, -0.5f * size
+		};
+
+		glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices);
+		glEnableVertexAttribArray(program->positionAttribute);
+
+		glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords);
+		glEnableVertexAttribArray(program->texCoordAttribute);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glDisableVertexAttribArray(program->positionAttribute);
+		glDisableVertexAttribArray(program->texCoordAttribute);
+	}
+
+	float u;
+	float v;
+	float width;
+	float height;
+	float size;
+	unsigned int textureID;
+};
+
+float lerp(float v0, float v1, float t) {
+	return (1.0 - t) * v0 + t * v1;
+}
+
 struct Entity {
 	Entity() {}
 
-	Entity(float x, float y, float sprite_u, float sprite_v, float sprite_width, float sprite_height, float dir_x, float dir_y, GLuint sprite_texture, Type obj_type) {
+	/*Entity(float x, float y, float sprite_u, float sprite_v, float sprite_width, float sprite_height, float dir_x, float dir_y, GLuint sprite_texture, Type obj_type) {
 		position[0] = x;
 		position[1] = y;
 		speed[0] = dir_x;
@@ -98,7 +149,28 @@ struct Entity {
 		height = sprite_height;
 		type = obj_type;
 	}
+	*/
+	
+	void update(float elapsed) {
+		if (!is_static) {
+			acceleration[1] = -1.0f;
+			speed[0] = lerp(speed[0], 0.0f, elapsed * friction[0]);
+			speed[1] = lerp(speed[1], 0.0f, elapsed * friction[1]);
+			speed[0] += acceleration[0] * elapsed;
+			speed[1] += acceleration[1] * elapsed;
+			position[0] += speed[0] * elapsed;
+			position[1] += speed[1] * elapsed;			
+		}
+	}
 
+	void draw(ShaderProgram* program, Matrix& modelMatrix) {
+		modelMatrix.Identity();
+		modelMatrix.Translate(position[0], position[1], 0);
+		modelMatrix.Scale(1.5f, 1.0f, 1.0f);
+		program->SetModelviewMatrix(modelMatrix);
+		this->sprite.Draw(program);
+	}
+	/*
 	void draw() {
 		entity_matrix.Identity();
 		entity_matrix.Translate(position[0], position[1], 0);
@@ -138,7 +210,7 @@ struct Entity {
 
 		glDisableVertexAttribArray(program->positionAttribute);
 		glDisableVertexAttribArray(program->texCoordAttribute);
-	}
+	}*/
 
 	float position[2]; //x,y
 	float boundaries[4];	//up, down, left, right
@@ -146,41 +218,71 @@ struct Entity {
 	float boundary[4];	//up, down, left, right
 	float speed[2];	//x, y
 	float acceleration[2];	//x, y
+	float friction[2];	//x, y
 	float u;
 	float v;
 	float width;
 	float height;
+	bool is_static;
 	GLuint texture;
 	Matrix entity_matrix;
 	Type type;
-
+	SpriteSheet sprite;
 };
 
-//Creating Entities
-Entity player;
-vector<Entity> coins;
-vector<int> coins_to_remove;
+//Creating Entities vector
+vector<Entity*> entities;
 
-void drawGame() {
-	player.draw();
-	for (size_t i = 0; i < coins.size(); i++){
-		coins[i].draw();
-	}
-	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-player.position[0], -player.position[1], 0.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
+void worldToTileCoordinates(float worldX, float worldY, int *gridX, int *gridY) {
+	*gridX = (int)(worldX / TILE_SIZE);
+	*gridY = (int)(-worldY / TILE_SIZE);
 }
 
-void updateGame() {
-	//Collision detection between player and coins
-	for (size_t i = 0; i < coins.size(); i++) {
-		if (player.boundary[0] > coins[i].boundary[1] &&
-			player.boundary[1] < coins[i].boundary[0] &&
-			player.boundary[2] < coins[i].boundary[3] &&
-			player.boundary[3] > coins[i].boundary[2]) {
-			coins.erase(coins.begin() + i);
+void buildLevel(ShaderProgram *program, GLuint tilesTexture) {
+	vector<float> vertexData;
+	vector<float> texCoordData;
+	int count = 0;
+	for (int y = 0; y < mapHeight; y++) {
+		for (int x = 0; x < mapWidth; x++) {
+			if (levelData[y][x] != 0) {
+				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
+				float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X) / (float)SPRITE_COUNT_Y;
+				float spriteWidth = 1.0f / (float)SPRITE_COUNT_X;
+				float spriteHeight = 1.0f / (float)SPRITE_COUNT_Y;
+				count += 1;
+				vertexData.insert(vertexData.end(), {
+					TILE_SIZE * x, -TILE_SIZE * y,
+					TILE_SIZE * x, (-TILE_SIZE * y) - TILE_SIZE,
+					(TILE_SIZE * x) + TILE_SIZE, (-TILE_SIZE * y) - TILE_SIZE,
+					TILE_SIZE * x, -TILE_SIZE * y,
+					(TILE_SIZE * x) + TILE_SIZE, (-TILE_SIZE * y) - TILE_SIZE,
+					(TILE_SIZE * x) + TILE_SIZE, -TILE_SIZE * y
+				});
+				texCoordData.insert(texCoordData.end(), {
+					u, v,
+					u, v + (spriteHeight),
+					u + spriteWidth, v + (spriteHeight),
+					u, v,
+					u + spriteWidth, v + (spriteHeight),
+					u + spriteWidth, v
+				});
+			}
 		}
 	}
+
+	glUseProgram(program->programID);
+
+	glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertexData.data());
+	glEnableVertexAttribArray(program->positionAttribute);
+
+	glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoordData.data());
+	glEnableVertexAttribArray(program->texCoordAttribute);
+
+	glBindTexture(GL_TEXTURE_2D, tilesTexture);
+	glDrawArrays(GL_TRIANGLES, 0, count * 6);
+
+	glDisableVertexAttribArray(program->positionAttribute);
+	glDisableVertexAttribArray(program->texCoordAttribute);
 }
 
 bool readHeader(ifstream &stream) {
@@ -241,6 +343,20 @@ bool readLayerData(ifstream &stream) {
 	return true;
 }
 
+void placeEntity(string& type, float x, float y) {
+	Entity* entity = new Entity();
+	if (type == "Player") {
+		entity->type = PLAYER;
+		entity->is_static = false;
+	}
+	if (type == "Coin") {
+		entity->type = COIN;
+		entity->is_static = true;
+	}
+	entity->position[0] = x;
+	entity->position[1] = y;
+}
+
 bool readEntityData(ifstream &stream) {
 	string line;
 	string type;
@@ -280,20 +396,55 @@ int main(int argc, char *argv[])
 	glViewport(0, 0, 1280, 720);
 	program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
 
-	projectionMatrix.SetOrthoProjection(-3.55f, 3.55f, -2.0f, 2.0f, -1.0f, 1.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
-	program->SetProjectionMatrix(projectionMatrix);
+	Matrix projectionMatrix;
+	Matrix modelMatrix;
+	Matrix viewMatrix;
 
-	mainTexture = LoadTexture(RESOURCE_FOLDER"sheet.png");
-	fontTexture = LoadTexture("font1.png");
+	projectionMatrix.SetOrthoProjection(-3.55f, 3.55f, -2.0f, 2.0f, -1.0f, 1.0f);
+
+	GLuint tile_texture = LoadTexture("arne_sprites.png");
+	SpriteSheet playerSprite(tile_texture, 0.0f / 256.0f, 80.0f / 128.0f, 16.0f / 256.0f, 16.0f / 128.0f, 0.4f);
+	SpriteSheet coinSprite(tile_texture, 64.0f / 256.0f, 48.0f / 128.0f, 16.0f / 256.0f, 16.0f / 128.0f, 0.4f);
+
+	//Reading into map file
+	ifstream infile("MyTileMap.txt");
+	string line;
+	while (getline(infile, line)) {
+		if (line == "[header]") {
+			if (!readHeader(infile)) {
+				return 0;
+			}
+		}
+		else if (line == "[layer]") {
+			readLayerData(infile);
+		}
+		else if (line == "[object]") {
+			readEntityData(infile);
+		}
+	}
+	infile.close();
+
+	//Creating Entities
+	for (size_t i = 0; i < entities.size(); i++) {
+		if (entities[i]->type == PLAYER) {
+			entities[i]->sprite = playerSprite;
+			entities[i]->width = playerSprite.width;
+			entities[i]->height = playerSprite.height;
+			entities[i]->speed[0] = 0;
+			entities[i]->speed[1] = 0;
+			entities[i]->acceleration[0] = 0;
+			entities[i]->acceleration[1] = 0;
+			entities[i]->friction[0] = 3;
+			entities[i]->friction[1] = 1;
+		}
+		else if (entities[i]->type == COIN) {
+			entities[i]->sprite = coinSprite;
+			entities[i]->width = coinSprite.width;
+			entities[i]->height = coinSprite.height;
+		}
+	};
 
 	const Uint8 *keys = SDL_GetKeyboardState(NULL);
-	//Textures
-	GLuint player_texture = LoadTexture("abc.png");
-
-	//Initializing entities
-	player = Entity(0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0, player_texture, 1.0f, 1.4f, PLAYER);
-	player.acceleration[1] = -0.01f;
 
 	SDL_Event event;
 	bool done = false;
@@ -303,23 +454,22 @@ int main(int argc, char *argv[])
 				done = true;
 			}
 		}
-		if (keys[SDL_SCANCODE_A] && player.boundary[2] > -3.4f) {
-			player.position[0] -= player.speed[0] * elapsed;
-			player.position[1] -= player.speed[0] * elapsed;
-			player.boundary[2] -= player.speed[0] * elapsed;
-			player.boundary[3] -= player.speed[0] * elapsed;
+		if (keys[SDL_SCANCODE_A]) {
+			entities[0]->speed[0] = -3.0f;
 		}
-		if (keys[SDL_SCANCODE_D] && player.boundary[3] < 3.4f) {
-			player.position[0] += player.speed[0] * elapsed;
-			player.position[1] += player.speed[0] * elapsed;
-			player.boundary[2] += player.speed[0] * elapsed;
-			player.boundary[3] += player.speed[0] * elapsed;
+		if (keys[SDL_SCANCODE_D]) {
+			entities[0]->speed[0] = 3.0f;
 		}
-
 		//Ticks
 		ticks = (float)SDL_GetTicks() / 1000.0f;
 		elapsed = ticks - lastFrameTicks;
 		lastFrameTicks = ticks;
+
+		//Moving screen according to player movement
+		viewMatrix.Identity();
+		viewMatrix.Translate(-entities[0]->position[0], -entities[0]->position[1], 0);
+		program->SetModelviewMatrix(modelMatrix);
+		program->SetProjectionMatrix(projectionMatrix);
 	}
 
 	SDL_Quit();
