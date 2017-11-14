@@ -1,0 +1,4 @@
+﻿  main.cpp
+d:\school\comp sci\cs 3113\platformer\nyucodebase\main.cpp(107): warning C4244: 'return': conversion from 'double' to 'float', possible loss of data
+  NYUCodebase.vcxproj -> D:\School\Comp Sci\CS 3113\Platformer\Debug\NYUCodebase.exe
+  NYUCodebase.vcxproj -> D:\School\Comp Sci\CS 3113\Platformer\Debug\NYUCodebase.pdb (Partial PDB)
