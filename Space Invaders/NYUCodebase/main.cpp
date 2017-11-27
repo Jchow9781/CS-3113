@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <SDL_image.h>
+#include <SDL_mixer.h>
 #include <vector>
 #include "ShaderProgram.h"
 #include "Matrix.h"
@@ -231,6 +232,11 @@ void drawMenu() {
 }
 
 void updateGame(){
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+	Mix_Chunk *collision;
+	Mix_Chunk *laser2;
+	laser2 = Mix_LoadWAV("laser2.wav");
+	collision = Mix_LoadWAV("collision1.wav");
 	//Make each invader move left and right
 	for (size_t i = 0; i < invaders.size(); i++) {
 		invaders[i].position[0] += invaders[i].speed[0] * elapsed;
@@ -246,6 +252,7 @@ void updateGame(){
 	if (timeSinceLastInvaderFire > 0.4f) {
 		invaderLasers.push_back(Entity(invaders[rand() % invaders.size()].position[0], invaders[rand() % invaders.size()].position[1], 602.0f / 1024.0f, 600.0f / 1024.0f, 48.0f / 1024.0f, 46.0f / 1024.0f, 0, -1.0f));
 		timeSinceLastInvaderFire = 0;
+		Mix_PlayChannel(-1, laser2, 0);
 	}
 
 	//Collision detection between lasers and objects
@@ -256,6 +263,7 @@ void updateGame(){
 				invaders[j].boundary[1] < playerLasers[i].boundary[0] &&
 				invaders[j].boundary[2] < playerLasers[i].boundary[3] &&
 				invaders[j].boundary[3] > playerLasers[i].boundary[2]) {
+				Mix_PlayChannel(-1, collision, 0);
 				playerLasersToRemove.push_back(i);
 				invaders.erase(invaders.begin() + j);
 			}
@@ -327,6 +335,14 @@ int main(int argc, char *argv[]) {
 
 	const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
+	//Initializing sound
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+	Mix_Chunk *laser1;
+	Mix_Music *music;
+	music = Mix_LoadMUS("backgroundSong.mp3");
+	laser1 = Mix_LoadWAV("laser1.wav");
+	Mix_PlayMusic(music, -1);
+
 	//Creating objects for each entity
 	player = Entity(0.0f, -1.8f, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 4.0f, 0);
 	for (int i = 0; i < 50; i++) {
@@ -347,6 +363,7 @@ int main(int argc, char *argv[]) {
 			} else if (timeSinceLastFire > 0.15f){
 				playerLasers.push_back(Entity(player.position[0], player.position[1], 843.0f / 1024.0f, 426.0f / 1024.0f, 13.0f / 1024.0f, 54.0f / 1024.0f, 0, 4.0f));
 				timeSinceLastFire = 0;
+				Mix_PlayChannel(-1, laser1, 0);
 			}
 		}
 		if (keys[SDL_SCANCODE_A] && player.boundary[2] > -3.4f) {
@@ -372,6 +389,10 @@ int main(int argc, char *argv[]) {
 			render();
 		}
 	}
+
+	//Cleanup audio
+	Mix_FreeChunk(laser1);
+	Mix_FreeMusic(music);
 
 	SDL_Quit();
 	return 0;

@@ -1,4 +1,4 @@
 ﻿  main.cpp
-d:\school\comp sci\cs-3113\space invaders\nyucodebase\main.cpp(333): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-  NYUCodebase.vcxproj -> D:\School\Comp Sci\CS-3113\Space Invaders\Debug\NYUCodebase.exe
-  NYUCodebase.vcxproj -> D:\School\Comp Sci\CS-3113\Space Invaders\Debug\NYUCodebase.pdb (Partial PDB)
+c:\users\ming\documents\school\cs-3113\space invaders\nyucodebase\main.cpp(349): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+  NYUCodebase.vcxproj -> C:\Users\Ming\Documents\School\CS-3113\Space Invaders\Debug\NYUCodebase.exe
+  NYUCodebase.vcxproj -> C:\Users\Ming\Documents\School\CS-3113\Space Invaders\Debug\NYUCodebase.pdb (Partial PDB)
