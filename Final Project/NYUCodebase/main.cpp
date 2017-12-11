@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <SDL_image.h>
+#include <random>
 #include "ShaderProgram.h"
 #include "Matrix.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -20,11 +21,105 @@ ShaderProgram* program;
 Matrix modelViewMatrix;
 Matrix projectionMatrix;
 
-GLuint fontTexture;
 
+
+//Game things
 enum GameState { STATE_MAIN_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_GAME_WON, STATE_GAME_LOST};
+enum TYPE {PLAYER, ASTEROID, LASER};
 int state;
 bool gameRunning = true;
+float lastFrameTicks = 0.0f;
+float elapsed;
+float ticks;
+float timeSinceLastFire;
+float timeSinceLastAsteroid;
+
+//Texture things
+GLuint mainTexture;
+GLuint fontTexture;
+//float texture_coords[] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
+
+struct Entity {
+	Entity() {}
+
+	Entity(float pos_x, float pos_y, float spriteU, float spriteV, float spriteWidth, float spriteHeight, float dir_x, float dir_y) {
+		position[0] = pos_x;
+		position[1] = pos_y;
+		speed[0] = dir_x;
+		speed[1] = dir_y;
+		entityMatrix.Identity();
+		entityMatrix.Translate(pos_x, pos_y, 0);
+		boundary[0] = pos_y + 0.05f * size;
+		boundary[1] = pos_y - 0.05f * size;
+		boundary[2] = pos_x - 0.05f * size;
+		boundary[3] = pos_x + 0.05f * size;
+		u = spriteU;
+		v = spriteV;
+		width = spriteWidth;
+		height = spriteHeight;
+	}
+
+	void draw() {
+		entityMatrix.Identity();
+		entityMatrix.Translate(position[0], position[1], 0);
+		entityMatrix.Rotate(270.0f * (3.1415926f / 180.0f));
+		program->SetModelviewMatrix(entityMatrix);
+
+		std::vector<float> vertices;
+		std::vector<float> texCoords;
+		float texture_x = u;
+		float texture_y = v;
+		vertices.insert(vertices.end(), {
+			-0.10f * size, -0.10f * size,
+			0.10f * size, 0.10f * size,
+			-0.10f * size, 0.10f * size,
+			0.10f * size, 0.10f * size,
+			-0.10f * size, -0.10f * size ,
+			0.10f * size, -0.10f * size
+		});
+		texCoords.insert(texCoords.end(), {
+			texture_x, texture_y + height,
+			texture_x + width, texture_y,
+			texture_x, texture_y,
+			texture_x + width, texture_y,
+			texture_x, texture_y + height,
+			texture_x + width, texture_y + height,
+		});
+
+		glUseProgram(program->programID);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices.data());
+		glEnableVertexAttribArray(program->positionAttribute);
+		glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords.data());
+		glEnableVertexAttribArray(program->texCoordAttribute);
+		glBindTexture(GL_TEXTURE_2D, mainTexture);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		glDisableVertexAttribArray(program->positionAttribute);
+		glDisableVertexAttribArray(program->texCoordAttribute);
+	}
+
+	float position[2]; //dir_x, dir_y]
+	float speed[2]; //[dir_x, dir_y]
+	float boundary[4]; //[up, down, left, right]
+	float u;
+	float v;
+	float width;
+	float height;
+	float size = 1.0f;
+	Matrix entityMatrix;
+	TYPE type;
+};
+
+Entity player;
+Entity asteroid1;
+std::vector<Entity> asteroids;
+std::vector<Entity> playerLasers;
+std::vector<int> playerLasersToRemove;
+
+
 
 GLuint LoadTexture(const char *filePath) {
 	int w, h, comp;
@@ -88,6 +183,7 @@ void renderMainMenu() {
 	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
 	program->SetModelviewMatrix(modelViewMatrix);
 	drawText(program, fontTexture, "MAIN MENU", 0.2f, 0.000001f);
+	
 }
 
 void renderLevelOne() {
@@ -95,6 +191,35 @@ void renderLevelOne() {
 	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
 	program->SetModelviewMatrix(modelViewMatrix);
 	drawText(program, fontTexture, "LEVEL ONE", 0.2f, 0.000001f);
+
+	player.draw();
+
+	//Drawing asteroids
+	for (size_t i = 0; i < asteroids.size(); i++) {
+		asteroids[i].draw();
+		asteroids[i].position[0] += asteroids[i].speed[0] * elapsed;
+	}
+
+	//Drawing player lasers
+	for (size_t i = 0; i < playerLasers.size(); i++) {
+		playerLasers[i].draw();
+		playerLasers[i].position[0] += playerLasers[i].speed[0] * elapsed;
+		playerLasers[i].boundary[0] += playerLasers[i].speed[1] * elapsed;
+		playerLasers[i].boundary[1] += playerLasers[i].speed[1] * elapsed;
+		//Delete lasors from vector if they fly outside screen
+		if (playerLasers[i].position[0] > 4.0f) {
+			playerLasers.erase(playerLasers.begin() + i);
+		}
+		for (size_t i = 0; i < playerLasersToRemove.size(); i++) {
+			playerLasers.erase(playerLasers.begin() + playerLasersToRemove[i]);
+		}
+		playerLasersToRemove.clear();
+	}
+	//asteroid1.draw();
+	//asteroid1.position[0] += asteroid1.speed[0] * elapsed;
+	//asteroid1.boundary[0] += asteroid1.speed[1] * elapsed;
+	//asteroid1.boundary[1] += asteroid1.speed[1] * elapsed;
+	//asteroid1.boundary[3] += asteroid1.speed[1] * elapsed;
 }
 
 void renderLevelTwo() {
@@ -152,9 +277,14 @@ void render() {
 	SDL_GL_SwapWindow(displayWindow);
 }
 
-class Entity {
-
-};
+void update() {
+	if (timeSinceLastAsteroid > 1.5f) {
+		asteroids.push_back(
+			Entity(4.0f, -1.8f + (3.6f * rand()) / ((float)RAND_MAX + 1.0f), (224.0f / 1024.0f), (748.0f / 1024.0f), (101.0f / 1024.0f), (84.0f / 1024.0f), -(3.0f * rand()) / ((float)RAND_MAX + 1.0f), 0)
+		);
+		timeSinceLastAsteroid = 0;
+	}
+}
 
 int main(int argc, char *argv[])
 {
@@ -171,7 +301,19 @@ int main(int argc, char *argv[])
 	projectionMatrix.SetOrthoProjection(-3.55f, 3.55f, -2.0f, 2.0f, -1.0f, 1.0f);
 	program->SetModelviewMatrix(modelViewMatrix);
 	program->SetProjectionMatrix(projectionMatrix);
+
 	fontTexture = LoadTexture("font1.png");
+	mainTexture = LoadTexture("sheet.png");
+
+	/*if (state == STATE_LEVEL_ONE) {
+		player = Entity(0.0f, -1.8f, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 3.0f, 3.0f);
+	}*/
+	player = Entity(-3.4f, 0, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 3.0f, 3.0f);
+
+	
+	//asteroid1 = Entity(2.0f, -1.8f + (3.6f * rand())/((float)RAND_MAX + 1.0f) , (224.0f / 1024.0f), (748.0f / 1024.0f), (101.0f / 1024.0f), (84.0f / 1024.0f), -3.0f, 0);
+	
+	const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 	SDL_Event event;
 	bool done = false;
@@ -186,13 +328,36 @@ int main(int argc, char *argv[])
 						if (state == STATE_MAIN_MENU) {
 							state = STATE_LEVEL_ONE;
 						}
+						else if(timeSinceLastFire > 0.15f) {
+							playerLasers.push_back(Entity(player.position[0], player.position[1], 843.0f / 1024.0f, 426.0f / 1024.0f, 13.0f / 1024.0f, 54.0f / 1024.0f, 4.0f, 0));
+							timeSinceLastFire = 0;
+						}
 					}
 			}
 		}
-
-		if (gameRunning) {
-			render();
+		if (keys[SDL_SCANCODE_S] && player.boundary[1] > -1.9f) {
+			player.position[1] -= player.speed[1] * elapsed;
+			player.boundary[0] -= player.speed[1] * elapsed;
+			player.boundary[1] -= player.speed[1] * elapsed;
+			player.boundary[2] -= player.speed[1] * elapsed;
+			player.boundary[3] -= player.speed[1] * elapsed;
 		}
+		if (keys[SDL_SCANCODE_W] && player.boundary[0] < 1.9f) {
+			player.position[1] += player.speed[1] * elapsed;
+			player.boundary[0] += player.speed[1] * elapsed;
+			player.boundary[1] += player.speed[1] * elapsed;
+			player.boundary[2] += player.speed[1] * elapsed;
+			player.boundary[3] += player.speed[1] * elapsed;
+		}
+
+		render();
+		update();
+
+		ticks = (float)SDL_GetTicks() / 1000.0f;
+		elapsed = ticks - lastFrameTicks;
+		lastFrameTicks = ticks;
+		timeSinceLastFire += elapsed;
+		timeSinceLastAsteroid += elapsed;
 	}
 
 	SDL_Quit();
