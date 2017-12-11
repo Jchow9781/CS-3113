@@ -1,3 +1,20 @@
-﻿  main.cpp
-  NYUCodebase.vcxproj -> C:\Users\Ming\Documents\School\CS-3113\Final Project\Debug\NYUCodebase.exe
-  NYUCodebase.vcxproj -> C:\Users\Ming\Documents\School\CS-3113\Final Project\Debug\NYUCodebase.pdb (Partial PDB)
+﻿  ShaderProgram.cpp
+  Matrix.cpp
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(148): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(149): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(150): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(151): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(165): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(166): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(167): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(168): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(172): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(173): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(174): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(175): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(213): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+d:\school\comp sci\cs 3113\final project\nyucodebase\matrix.cpp(214): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+  main.cpp
+  Generating Code...
+  NYUCodebase.vcxproj -> D:\School\Comp Sci\CS 3113\Final Project\Debug\NYUCodebase.exe
+  NYUCodebase.vcxproj -> D:\School\Comp Sci\CS 3113\Final Project\Debug\NYUCodebase.pdb (Partial PDB)
