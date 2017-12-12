@@ -198,16 +198,22 @@ void renderLevelOne() {
 	for (size_t i = 0; i < asteroids.size(); i++) {
 		asteroids[i].draw();
 		asteroids[i].position[0] += asteroids[i].speed[0] * elapsed;
+		asteroids[i].boundary[0] += asteroids[i].speed[0] * elapsed;
+		asteroids[i].boundary[1] += asteroids[i].speed[0] * elapsed;
+		asteroids[i].boundary[2] += asteroids[i].speed[0] * elapsed;
+		asteroids[i].boundary[3] += asteroids[i].speed[0] * elapsed;
 	}
 
 	//Drawing player lasers
 	for (size_t i = 0; i < playerLasers.size(); i++) {
 		playerLasers[i].draw();
 		playerLasers[i].position[0] += playerLasers[i].speed[0] * elapsed;
-		playerLasers[i].boundary[0] += playerLasers[i].speed[1] * elapsed;
-		playerLasers[i].boundary[1] += playerLasers[i].speed[1] * elapsed;
+		playerLasers[i].boundary[0] += playerLasers[i].speed[0] * elapsed;
+		playerLasers[i].boundary[1] += playerLasers[i].speed[0] * elapsed;
+		playerLasers[i].boundary[2] += playerLasers[i].speed[0] * elapsed;
+		playerLasers[i].boundary[3] += playerLasers[i].speed[0] * elapsed;
 		//Delete lasors from vector if they fly outside screen
-		if (playerLasers[i].position[0] > 4.0f) {
+		if (playerLasers[i].boundary[3] > 4.0f) {
 			playerLasers.erase(playerLasers.begin() + i);
 		}
 		for (size_t i = 0; i < playerLasersToRemove.size(); i++) {
@@ -215,11 +221,6 @@ void renderLevelOne() {
 		}
 		playerLasersToRemove.clear();
 	}
-	//asteroid1.draw();
-	//asteroid1.position[0] += asteroid1.speed[0] * elapsed;
-	//asteroid1.boundary[0] += asteroid1.speed[1] * elapsed;
-	//asteroid1.boundary[1] += asteroid1.speed[1] * elapsed;
-	//asteroid1.boundary[3] += asteroid1.speed[1] * elapsed;
 }
 
 void renderLevelTwo() {
@@ -250,6 +251,36 @@ void renderGameLost() {
 	drawText(program, fontTexture, "YOU WIN!", 0.2f, 0.000001f);
 }
 
+void update() {
+	//Laser-asteroid collision testing
+	for (size_t i = 0; i < playerLasers.size(); i++) {
+		for (size_t j = 0; j < asteroids.size(); j++) {
+			if (asteroids[j].boundary[2] < playerLasers[i].boundary[3]&&
+				asteroids[j].boundary[0] > playerLasers[i].boundary[1] /*&&
+				asteroids[j].boundary[1] < playerLasers[i].boundary[0] &&
+				*/) {
+				asteroids.erase(asteroids.begin() + j);
+			}
+		}
+	}
+
+	//for (size_t i = 0; i < asteroids.size(); i++) {
+	//	if (asteroids[i].boundary[2] < 0) {
+	//		asteroids.erase(asteroids.begin() + i);
+	//	}
+	//}
+
+	//Asteroid spawning
+	if (timeSinceLastAsteroid > 1.5f) {
+		asteroids.push_back(
+			Entity(4.0f, -1.8f + (3.6f * rand()) / ((float)RAND_MAX + 1.0f), (224.0f / 1024.0f), (748.0f / 1024.0f), (101.0f / 1024.0f), (84.0f / 1024.0f), -(3.0f * rand()) / ((float)RAND_MAX + 1.0f), 0)
+		);
+		timeSinceLastAsteroid = 0;
+	}
+
+
+}
+
 void render() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	switch (state) {
@@ -277,14 +308,7 @@ void render() {
 	SDL_GL_SwapWindow(displayWindow);
 }
 
-void update() {
-	if (timeSinceLastAsteroid > 1.5f) {
-		asteroids.push_back(
-			Entity(4.0f, -1.8f + (3.6f * rand()) / ((float)RAND_MAX + 1.0f), (224.0f / 1024.0f), (748.0f / 1024.0f), (101.0f / 1024.0f), (84.0f / 1024.0f), -(3.0f * rand()) / ((float)RAND_MAX + 1.0f), 0)
-		);
-		timeSinceLastAsteroid = 0;
-	}
-}
+
 
 int main(int argc, char *argv[])
 {
@@ -305,9 +329,6 @@ int main(int argc, char *argv[])
 	fontTexture = LoadTexture("font1.png");
 	mainTexture = LoadTexture("sheet.png");
 
-	/*if (state == STATE_LEVEL_ONE) {
-		player = Entity(0.0f, -1.8f, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 3.0f, 3.0f);
-	}*/
 	player = Entity(-3.4f, 0, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 3.0f, 3.0f);
 
 	
@@ -322,17 +343,17 @@ int main(int argc, char *argv[])
 			if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE) {
 				done = true;
 			}
-			switch (event.type) {
-				case SDL_KEYDOWN:
-					if (event.key.keysym.scancode == SDL_SCANCODE_SPACE) {
-						if (state == STATE_MAIN_MENU) {
-							state = STATE_LEVEL_ONE;
-						}
-						else if(timeSinceLastFire > 0.15f) {
-							playerLasers.push_back(Entity(player.position[0], player.position[1], 843.0f / 1024.0f, 426.0f / 1024.0f, 13.0f / 1024.0f, 54.0f / 1024.0f, 4.0f, 0));
-							timeSinceLastFire = 0;
-						}
-					}
+		}
+		if (keys[SDL_SCANCODE_RETURN]) {
+			
+		}
+		if (keys[SDL_SCANCODE_SPACE]) {
+			if (state == STATE_MAIN_MENU) {
+				state = STATE_LEVEL_ONE;
+			}
+			else if (timeSinceLastFire > 0.1f) {
+				playerLasers.push_back(Entity(player.position[0], player.position[1], 843.0f / 1024.0f, 426.0f / 1024.0f, 13.0f / 1024.0f, 54.0f / 1024.0f, 4.0f, 0));
+				timeSinceLastFire = 0;
 			}
 		}
 		if (keys[SDL_SCANCODE_S] && player.boundary[1] > -1.9f) {
