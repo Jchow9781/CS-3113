@@ -462,7 +462,7 @@ void renderHUD() {
 	program->SetModelviewMatrix(modelViewMatrix);
 	drawText(program, fontTexture, std::to_string(10 - asteroidsKilled), 0.15f, -0.065f);
 
-	//Render Asteroids to kill
+	//Render fire rate delay
 	modelViewMatrix.Identity();
 	modelViewMatrix.Translate(-3.5f, 1.6f, 0.0f);
 	program->SetModelviewMatrix(modelViewMatrix);
@@ -495,7 +495,6 @@ void reset() {
 	health = 3;
 	asteroidsKilled = 0;
 	fireDelay = 0.2f;
-	//delete every entity 
 	asteroids.clear();
 	playerLasers.clear();
 }
