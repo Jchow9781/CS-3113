@@ -7,6 +7,7 @@
 #include <random>
 #include "ShaderProgram.h"
 #include "Matrix.h"
+#include <SDL_mixer.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include <vector>
@@ -33,15 +34,18 @@ float ticks;
 float timeSinceLastFire;
 float timeSinceLastAsteroid;
 float screenShakeValue;
+float animationTime;
+float animationValue;
 int asteroidsKilled = 0;
 int health;
 float fireDelay = 0.2f;
 
-//Texture things
+//Texture 
+GLuint coinTexture;
 GLuint mainTexture;
 GLuint fontTexture;
 GLuint backgroundTexture;
-GLuint coinTexture;
+
 //float texture_coords[] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
 
 struct Entity {
@@ -227,6 +231,7 @@ struct ParticleEmitter {
 
 Entity player;
 Entity asteroid1;
+Entity coin;
 std::vector<Entity> asteroids;
 std::vector<Entity> playerLasers;
 std::vector<Entity> coins;
@@ -247,6 +252,33 @@ GLuint LoadTexture(const char *filePath) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	stbi_image_free(image);
 	return retTexture;
+}
+
+float lerp(float v0, float v1, float t) {
+	return (1.0 - t)*v0 + t*v1;
+}
+
+float easeIn(float from, float to, float time) {
+	float tVal = time*time*time*time*time;
+	return (1.0f - tVal)*from + tVal*to;
+}
+
+float mapValue(float value, float srcMin, float srcMax, float dstMin, float dstMax) {
+	float retVal = dstMin + ((value - srcMin) / (srcMax - srcMin) * (dstMax - dstMin));
+	if (retVal < dstMin) {
+		retVal = dstMin;
+	}
+	if (retVal > dstMax) {
+		retVal = dstMax;
+	}
+	return retVal;
+}
+
+float easeOutElastic(float from, float to, float time) {
+	float p = 0.3f;
+	float s = p / 4.0f;
+	float diff = (to - from);
+	return from + diff + (diff*pow(2.0f, -10.0f*time) * sin((time - s)*(2 * 3.1415) / p));
 }
 
 void drawText(ShaderProgram* program, int fontTexture, std::string text, float size, float spacing) {
@@ -290,11 +322,123 @@ void drawText(ShaderProgram* program, int fontTexture, std::string text, float s
 }
 
 void renderMainMenu() {
+	animationTime += elapsed;
+	animationValue = mapValue(animationTime, 0, 3.0f, 0.0, 1.0);
 	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
-	//modelViewMatrix.Translate(0.0f, sin(screenShakeValue * 10) * 0.1f, 0.0f);
+	modelViewMatrix.Translate(easeOutElastic(4.0f, -3.1f, animationValue), 1.5f, 0.0);
 	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, "MAIN MENU", 0.2f, 0);	
+	drawText(program, fontTexture, "OBJECTIVE: DEFEND EARTH FROM ASTEROIDS", 0.3f, -0.13f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(easeIn(4.0f, -3.1f, animationValue), 0.8f, 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "CONTROLS:", 0.2f, -0.065f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(easeIn(4.0f, -3.1f, animationValue), 0.4f, 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "USE A & D TO MOVE", 0.2f, -0.065f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(easeIn(4.0f, -3.1f, animationValue), 0, 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "USE SPACE TO SHOOT", 0.2f, -0.065f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(easeIn(4.0f, -3.1f, animationValue), -0.4f, 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "USE ESC TO RETURN TO THE MENU AT ANY TIME", 0.2f, -0.065f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(-1.3f, easeIn(-3.0f, -0.8f, animationValue), 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "HIT SPACE TO BEGIN!", 0.2f, -0.065f);
+	
+}
+
+void renderLevelOne() {
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(2.35f, 1.9f, 0.0f);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "LEVEL 1", 0.25f, -0.065f);
+}
+
+void renderLevelTwo() {
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(2.2f, 1.9f, 0.0f);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "LEVEL 2", 0.25f, -0.065f);
+}
+
+void renderLevelThree() {
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(2.2f, 1.9f, 0.0f);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "LEVEL 3", 0.25f, -0.065f);
+}
+
+void renderGameLost() {
+	animationTime += elapsed;
+	animationValue = mapValue(animationTime, 0, 5.0f, 0.0, 1.0);
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(-2.1f, lerp(2.2f, 1.0f, animationValue), 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "YOU FAILED TO DEFEND EARTH", 0.3f, -0.13f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(-1.35, easeIn(-3.7f, -0.8f, animationValue), 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "HIT ENTER TO PLAY AGAIN", 0.2f, -0.065f);
+}
+
+void renderGameWon() {
+	animationTime += elapsed;
+	animationValue = mapValue(animationTime, 0, 1.0f, 0.0, 1.0);
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(-1.75, lerp(-3.2f, 1.0f, animationValue), 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "EARTH IS NOW SAFE", 0.4f, -0.17f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(-1.25, lerp(-3.7f, 0.5f, animationValue), 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "THANKS TO YOU", 0.4f, -0.17f);
+
+	modelViewMatrix.Identity();
+	modelViewMatrix.Translate(-1.35, easeIn(-3.7f, -0.8f, animationValue), 0.0);
+	program->SetModelviewMatrix(modelViewMatrix);
+	drawText(program, fontTexture, "HIT ENTER TO PLAY AGAIN", 0.2f, -0.065f);
+}
+
+void renderGame() {
+	player.draw();
+
+	//Drawing asteroids
+	for (size_t i = 0; i < asteroids.size(); i++) {
+		asteroids[i].draw();
+		asteroids[i].position[0] += asteroids[i].speed[0] * elapsed;
+		asteroids[i].boundary[2] += asteroids[i].speed[0] * elapsed;
+		asteroids[i].boundary[3] += asteroids[i].speed[0] * elapsed;
+	}
+
+	coin.drawCoin();
+
+	//Drawing player lasers
+	for (size_t i = 0; i < playerLasers.size(); i++) {
+		playerLasers[i].draw();
+		playerLasers[i].position[0] += playerLasers[i].speed[0] * elapsed;
+		playerLasers[i].boundary[2] += playerLasers[i].speed[0] * elapsed;
+		playerLasers[i].boundary[3] += playerLasers[i].speed[0] * elapsed;
+
+		//Delete lasors from vector if they fly outside screen
+		if (playerLasers[i].boundary[3] > 4.0f) {
+			playerLasers.erase(playerLasers.begin() + i);
+		}
+		for (size_t i = 0; i < playerLasersToRemove.size(); i++) {
+			playerLasers.erase(playerLasers.begin() + playerLasersToRemove[i]);
+		}
+		playerLasersToRemove.clear();
+	}
 }
 
 void renderHUD() {
@@ -317,7 +461,7 @@ void renderHUD() {
 	modelViewMatrix.Translate(-2.2f, 1.75f, 0.0f);
 	program->SetModelviewMatrix(modelViewMatrix);
 	drawText(program, fontTexture, std::to_string(10 - asteroidsKilled), 0.15f, -0.065f);
-	
+
 	//Render Asteroids to kill
 	modelViewMatrix.Identity();
 	modelViewMatrix.Translate(-3.5f, 1.6f, 0.0f);
@@ -326,7 +470,7 @@ void renderHUD() {
 	modelViewMatrix.Identity();
 	modelViewMatrix.Translate(-2.1f, 1.6f, 0.0f);
 	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, std::to_string(fireDelay ), 0.15f, -0.065f);
+	drawText(program, fontTexture, std::to_string(fireDelay), 0.15f, -0.065f);
 }
 
 void renderBackground() {
@@ -347,83 +491,19 @@ void renderBackground() {
 	glDisableVertexAttribArray(program->texCoordAttribute);
 }
 
-void renderGame() {
-	player.draw();
-
-	//Drawing asteroids
-	for (size_t i = 0; i < asteroids.size(); i++) {
-		asteroids[i].draw();
-		asteroids[i].position[0] += asteroids[i].speed[0] * elapsed;
-		asteroids[i].boundary[2] += asteroids[i].speed[0] * elapsed;
-		asteroids[i].boundary[3] += asteroids[i].speed[0] * elapsed;
-	}
-
-	for (size_t i = 0; i < coins.size(); i++) {
-		coins[i].drawCoin();
-	}
-
-	//Drawing player lasers
-	for (size_t i = 0; i < playerLasers.size(); i++) {
-		playerLasers[i].draw();
-		playerLasers[i].position[0] += playerLasers[i].speed[0] * elapsed;
-		playerLasers[i].boundary[2] += playerLasers[i].speed[0] * elapsed;
-		playerLasers[i].boundary[3] += playerLasers[i].speed[0] * elapsed;
-
-		//Delete lasors from vector if they fly outside screen
-		if (playerLasers[i].boundary[3] > 4.0f) {
-			playerLasers.erase(playerLasers.begin() + i);
-		}
-		for (size_t i = 0; i < playerLasersToRemove.size(); i++) {
-			playerLasers.erase(playerLasers.begin() + playerLasersToRemove[i]);
-		}
-		playerLasersToRemove.clear();
-	}
-}
-
-void renderLevelOne() {
-	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, "LEVEL 1", 0.2f, 0.000001f);
-}
-
-void renderLevelTwo() {
-	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, "LEVEL 2", 0.2f, 0.000001f);
-}
-
-void renderLevelThree() {
-	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, "LEVEL THREE", 0.2f, 0.000001f);
-}
-
-void renderGameLost() {
-	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, "YOU HAVE DIED :(", 0.2f, 0.000001f);
-}
-
-void renderGameWon() {
-	modelViewMatrix.Identity();
-	modelViewMatrix.Translate(-1.5f, 1.5f, 0.0f);
-	program->SetModelviewMatrix(modelViewMatrix);
-	drawText(program, fontTexture, "YOU WIN!", 0.2f, 0.000001f);
-}
-
 void reset() {
 	health = 3;
 	asteroidsKilled = 0;
+	fireDelay = 0.2f;
 	//delete every entity 
 	asteroids.clear();
 	playerLasers.clear();
 }
 
 void updateGame() {
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+	Mix_Chunk *collision;
+	collision = Mix_LoadWAV("collision1.wav");
 	//Asteroid spawning
 	if (timeSinceLastAsteroid > 1.5f) {
 		asteroids.push_back(
@@ -431,12 +511,6 @@ void updateGame() {
 		);
 		timeSinceLastAsteroid = 0;
 	}
-
-	//if (timeSinceLastAsteroid > 1.0f) {
-		coins.push_back(
-			Entity(0, 0, 0, 0, (40.0f / 1024.0f), (44.5f / 1024.0f), 0, 0)
-		);
-	
 
 	//Laser-asteroid collision testing
 	for (size_t i = 0; i < playerLasers.size(); i++) {
@@ -448,6 +522,7 @@ void updateGame() {
 				playerLasersToRemove.push_back(i);
 				asteroids.erase(asteroids.begin() + j);
 				asteroidsKilled++;
+				Mix_PlayChannel(-1, collision, 0);
 			}
 		}
 	}
@@ -463,6 +538,12 @@ void updateGame() {
 		state = STATE_GAME_LOST;
 	}
 
+	for (size_t i = 0; i < asteroids.size(); i++) {
+		if (asteroids[i].boundary[2] < -4.0f) {
+			asteroids.erase(asteroids.begin() + i);
+		}
+	}
+
 	if (asteroidsKilled >= 10) {
 		asteroidsKilled = 0;
 		switch (state) {
@@ -475,13 +556,9 @@ void updateGame() {
 			state = STATE_LEVEL_THREE;
 			break;
 		case STATE_LEVEL_THREE:
+			reset();
 			state = STATE_GAME_WON;
 			break;
-		}
-	}
-	for (size_t i = 0; i < asteroids.size(); i++) {
-		if (asteroids[i].boundary[2] < -4.0f) {
-			asteroids.erase(asteroids.begin() + i);
 		}
 	}
 }
@@ -542,18 +619,23 @@ int main(int argc, char *argv[])
 	program->SetModelviewMatrix(modelViewMatrix);
 	program->SetProjectionMatrix(projectionMatrix);
 
+	//Loading Textures
 	fontTexture = LoadTexture("font1.png");
 	mainTexture = LoadTexture("sheet.png");
-	coinTexture = LoadTexture("coins.png");
+	coinTexture = LoadTexture("chips.png");
 	backgroundTexture = LoadTexture("background.jpg");
+
+	//Loading Sound
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+	Mix_Chunk *laser1;
+	Mix_Music *music;
+	music = Mix_LoadMUS("backgroundSong.mp3");
+	laser1 = Mix_LoadWAV("laser1.wav");
+	Mix_PlayMusic(music, -1);
 
 	player = Entity(-3.4f, 0, (346.0f / 1024.0f), (75.0f / 1024.0f), (98.0f / 1024.0f), (75.0f / 1024.0f), 3.0f, 3.0f);
 	health = 3;
-	
-	//asteroid1 = Entity(2.0f, -1.8f + (3.6f * rand())/((float)RAND_MAX + 1.0f) , (224.0f / 1024.0f), (748.0f / 1024.0f), (101.0f / 1024.0f), (84.0f / 1024.0f), -3.0f, 0);
-	//asteroids.push_back(
-	//	Entity(2.0f, -1.8f + (3.6f * rand()) / ((float)RAND_MAX + 1.0f), (224.0f / 1024.0f), (748.0f / 1024.0f), (101.0f / 1024.0f), (84.0f / 1024.0f), -2.0f, 0)
-	//);
+
 	const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 	SDL_Event event;
@@ -564,8 +646,15 @@ int main(int argc, char *argv[])
 				done = true;
 			}
 		}
+		if (keys[SDL_SCANCODE_ESCAPE]) {
+			reset();
+			state = STATE_MAIN_MENU;
+		}
 		if (keys[SDL_SCANCODE_RETURN]) {
 			if (state == STATE_GAME_LOST) {
+				state = STATE_MAIN_MENU;
+			}
+			if (state == STATE_GAME_WON) {
 				state = STATE_MAIN_MENU;
 			}
 		}
@@ -575,6 +664,7 @@ int main(int argc, char *argv[])
 			} else if (timeSinceLastFire > fireDelay) {
 				playerLasers.push_back(Entity(player.position[0], player.position[1], 843.0f / 1024.0f, 426.0f / 1024.0f, 13.0f / 1024.0f, 54.0f / 1024.0f, 4.0f, 0));
 				timeSinceLastFire = 0;
+				Mix_PlayChannel(-1, laser1, 0);
 			}
 		}
 		if (keys[SDL_SCANCODE_S] && player.boundary[1] > -1.9f) {
